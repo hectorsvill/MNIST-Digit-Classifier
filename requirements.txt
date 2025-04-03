@@ -1,0 +1,19 @@
+# requirements.txt
+
+# Core ML/Data
+tensorflow
+numpy
+scikit-learn # For evaluation metrics and potential splitting
+matplotlib # For plotting history/confusion matrix
+seaborn # For pretty confusion matrix
+
+# API Framework
+Flask
+
+# Testing Framework
+pytest
+pytest-mock # For mocking dependencies in tests
+requests # Useful for making requests in tests or manually
+
+# Optional: Production WSGI Server
+# gunicorn>=20.0.0

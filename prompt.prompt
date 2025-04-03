@@ -1,0 +1,172 @@
+Overall Objective: Generate Python code for a complete, locally runnable AI project. The project should build, train, evaluate, and provide an API interface for an AI model designed for a specific task. The code should be well-structured into separate files, include unit/integration tests, and provide clear documentation.
+
+Core Requirements (User to Specify):
+
+Project Goal:
+
+AI Functionality: [Clearly and concisely describe the specific task the AI model should perform. Examples: Classify handwritten digits (MNIST); Predict customer churn based on features X, Y, Z; Generate short summaries of news articles under 500 words; Detect cats vs. dogs in images.]
+
+Intended Use Case: [Briefly state the intended application, e.g., Powering real-time predictions in a local web app; Batch processing data for analysis; A command-line tool for classification.]
+
+Core ML/DL Library: [Choose ONE: TensorFlow/Keras, PyTorch, or Scikit-learn]
+
+"From Scratch" Approach:
+
+Prioritize defining data processing steps, model architecture (layers for TF/PyTorch, model type/pipeline for Scikit-learn), and the training loop (especially for TF/PyTorch) explicitly using the chosen library's components.
+
+Avoid relying solely on high-level abstractions or pre-built end-to-end pipelines where reasonable (e.g., don't just use automl unless specified). The goal is clarity and understanding of the components.
+
+Data Handling:
+
+Data Source: [Specify ONE: Generate placeholder/dummy data suitable for the task; Load a standard dataset available in the chosen library (e.g.,tf.keras.datasets.mnist.load_data(),sklearn.datasets.load_iris()); Assume data is available at a specific relative path (e.g.,./data/my_data.csv) - also specify expected format if local path.]
+
+Preprocessing Steps: [Detail the required steps. Examples: Normalization/Scaling (e.g., Min-Max, Standardization); Handling missing values (e.g., imputation); Feature engineering (if any); Text vectorization (e.g., TF-IDF, Bag-of-Words); Image resizing/flattening/channel ordering; One-hot encoding for labels; Splitting into training, validation, and test sets.]
+
+Model Definition:
+
+Architecture (TF/PyTorch): [Describe the desired layers and their sequence. Examples: Simple MLP with 2 hidden layers (128, 64 neurons, ReLU activation, Dropout 0.2); Basic CNN (Conv2D -> MaxPooling -> Conv2D -> MaxPooling -> Flatten -> Dense); Simple LSTM for sequence data.]
+
+Model Type (Scikit-learn): [Specify the model. Examples: LogisticRegression(C=1.0); RandomForestClassifier(n_estimators=100); SVC(kernel='rbf'); Pipeline([('scaler', StandardScaler()), ('pca', PCA(n_components=10)), ('svc', SVC())]). Specify key hyperparameters or request sensible defaults.]
+
+Training Configuration:
+
+Loss Function: [Specify loss function appropriate for the task and framework, e.g., CategoricalCrossentropy, BinaryCrossentropy, MSE, NLLLoss.]
+
+Optimizer: [Specify optimizer, e.g., Adam, SGD, RMSprop. Include learning rate if specific value desired, otherwise request default.]
+
+Metrics: [Specify metrics to track during training and evaluation, e.g., accuracy, precision, recall, F1-score, MSE, MAE.]
+
+Epochs/Iterations: [Specify number of training epochs or iterations, e.g., 15 epochs.]
+
+Batch Size: [Specify batch size, e.g., 32.]
+
+API Implementation:
+
+Framework: [Choose ONE: Flask or FastAPI]
+
+Endpoints: Must include /health, /predict. Optionally include /learn for basic online learning (if applicable to the task and framework).
+
+/predict Input: [Define the expected JSON structure for input, e.g., {"features": [...]}, {"text": "..."}]
+
+/predict Output: [Define the expected JSON structure for output, e.g., {"prediction": "result", "confidence": 0.9}]
+
+/learn Input (if requested): [Define expected JSON, e.g., {"features": [...], "label": ...}]
+
+/learn Output (if requested): [Define expected JSON, e.g., {"message": "...", "status": "..."}]
+
+Project Structure (Local):
+
+Generate code organized into the following local directory structure:
+
+[project_root_name]/
+├── models/                     # Directory to save/load trained models
+│   └── .gitkeep                # Placeholder to keep dir in git
+├── src/                        # Source code directory
+│   ├── __init__.py
+│   ├── config.py               # Configuration variables (paths, hyperparameters)
+│   ├── data_loader.py          # Data loading and preprocessing logic
+│   ├── model.py                # Model definition function(s)
+│   ├── training.py             # Training loop, evaluation, plotting logic
+│   └── api/
+│       ├── __init__.py
+│       ├── app.py              # API definition (Flask/FastAPI) using factory pattern
+│       └── preprocessing.py    # API-specific input preprocessing
+├── tests/                      # Test suite directory
+│   ├── __init__.py
+│   ├── conftest.py             # Pytest fixtures (mock model, test client)
+│   ├── test_api.py             # Tests for the API endpoints
+│   ├── test_data_loader.py     # Tests for data loading/preprocessing
+│   └── test_model.py           # Tests for model building/structure
+├── train.py                    # Main script to run training
+├── run_api.py                  # Main script to run the API server (using app factory)
+├── requirements.txt            # Python dependencies
+└── README.md                   # Project documentation
+Use code with caution.
+Code Generation Details (File by File):
+
+src/config.py: Define constants for file paths (relative to project root), model parameters (input shape, num classes), training hyperparameters (epochs, batch size, learning rate), and API settings.
+
+src/data_loader.py: Implement functions to load data based on the specified source, perform all specified preprocessing steps, and split data. If using TF/PyTorch, include a utility to create efficient datasets (tf.data.Dataset or torch.utils.data.DataLoader).
+
+src/model.py: Implement a function build_model(...) that constructs and returns the untrained model object according to the specified architecture/type and framework.
+
+src/training.py:
+
+Implement the training logic. For TF/PyTorch, this should include the explicit training loop (@tf.function or PyTorch equivalent recommended) iterating through epochs and batches, performing forward/backward passes, and updating weights. For Scikit-learn, this might be a wrapper around .fit().
+
+Implement an evaluation function that calculates and prints metrics on the test set.
+
+Implement a function to plot (and save to a file, e.g., in models/) training history (loss/metrics vs. epochs) and potentially the confusion matrix. Avoid plt.show().
+
+src/api/preprocessing.py: Implement function(s) to specifically preprocess raw input coming into the API (e.g., converting JSON list to NumPy array, normalizing if needed, reshaping).
+
+src/api/app.py:
+
+Implement a create_app() factory function for the chosen API framework (Flask/FastAPI).
+
+Inside the factory: Load the trained model from the models/ directory. Handle model-not-found errors gracefully. Compile the model if necessary for API functions (like /learn).
+
+Define the specified API endpoints (/health, /predict, /learn if requested).
+
+Endpoints should handle JSON request parsing, call the API preprocessing function, interact with the loaded model (model.predict(), model.train_on_batch() or equivalent for /learn), format the JSON response, and include basic error handling (e.g., for bad input format, prediction errors).
+
+train.py:
+
+Main executable script.
+
+Use argparse to allow overriding key hyperparameters (epochs, lr, batch size, model save path) from the command line.
+
+Call functions from data_loader.py, model.py, and training.py in sequence.
+
+Compile the model if required by model.evaluate even with a custom loop.
+
+Save the trained model to the path specified in config.py (or overridden via args).
+
+run_api.py:
+
+Main executable script to launch the API.
+
+Use argparse for host/port configuration.
+
+Import and call the create_app() factory from src.api.app.
+
+Run the app using Flask's app.run() or Uvicorn (for FastAPI). Include instructions/comments on how to run with Gunicorn/Uvicorn for production.
+
+requirements.txt: Generate a list of necessary Python packages with sensible version specifiers (e.g., tensorflow>=2.8, flask>=2.0, scikit-learn, numpy, pandas (if used), pytest, requests, matplotlib, seaborn).
+
+README.md: Generate documentation including: Project Title, Brief Description, Setup Instructions (clone, venv, install requirements), Usage Instructions (how to run train.py, run_api.py, example curl commands for API endpoints), Testing Instructions (how to run pytest), and a High-Level Explanation section explaining the project's components (data, model, training, API) in simple terms for someone less familiar with AI/ML.
+
+Testing Requirements:
+
+Use pytest.
+
+tests/conftest.py: Include fixtures for:
+
+A mock version of the trained model (using unittest.mock or pytest-mock) to isolate API tests from actual model loading/prediction.
+
+A test client for the API framework (e.g., app.test_client() for Flask).
+
+tests/test_api.py: Test API endpoints for:
+
+Success cases (valid input, expected output structure and status code).
+
+Failure cases (invalid input format, missing keys, incorrect data types, model not loaded).
+
+Test /health, /predict, and /learn (if applicable).
+
+tests/test_data_loader.py: Test data loading and preprocessing functions for correct shapes, data types, value ranges (e.g., normalization), and splitting logic. Test API preprocessing separately.
+
+tests/test_model.py: Test the build_model function for correct model type, input/output shapes, and key layer properties (e.g., output activation).
+
+Style and Constraints:
+
+Generate clean, well-commented Python code following PEP 8 guidelines where possible.
+
+Emphasize modularity by separating concerns into different files/functions.
+
+Include basic error handling (e.g., try...except blocks) in file loading, API request handling, etc.
+
+Use relative imports within the src package (e.g., from . import config).
+
+Ensure generated code is intended to be run locally, not within a notebook environment (unless specifically requested for a part).
+

@@ -1,0 +1,23 @@
+mnist_local_project/
+├── models/                     # Directory to save trained models
+│   └── (empty initially)
+├── src/                        # Source code directory
+│   ├── __init__.py
+│   ├── config.py               # Configuration variables
+│   ├── data_loader.py          # Data loading and preprocessing
+│   ├── model.py                # Model definition
+│   ├── training.py             # Training script logic
+│   └── api/
+│       ├── __init__.py
+│       ├── app.py              # Flask API code
+│       └── preprocessing.py    # API-specific preprocessing
+├── tests/                      # Test suite directory
+│   ├── __init__.py
+│   ├── conftest.py             # Pytest fixtures (like test API client)
+│   ├── test_api.py             # Tests for the Flask API
+│   ├── test_data_loader.py     # Tests for data loading/preprocessing
+│   └── test_model.py           # Tests for model building
+├── train.py                    # Main script to run training
+├── run_api.py                  # Main script to run the API
+├── requirements.txt            # Python dependencies
+└── README.md                   # Project instructions
