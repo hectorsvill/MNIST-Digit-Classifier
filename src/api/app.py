@@ -1,6 +1,6 @@
 # src/api/app.py
 """
-Flask API definition.
+Flask API definition. Now accepts image uploads.
 """
 import os
 import tensorflow as tf
@@ -11,7 +11,8 @@ import time
 
 # Use relative imports within the 'src' package
 from .. import config
-from .preprocessing import preprocess_api_input
+# Import the new image processing function
+from .preprocessing import process_uploaded_image
 
 # --- Global Variables ---
 model = None
@@ -27,16 +28,10 @@ def load_trained_model(model_path=config.MODEL_SAVE_PATH):
             logging.error(f"FATAL: Model file not found at {model_path}. Cannot start API.")
             return False
         model = tf.keras.models.load_model(model_path)
-
-        # Recreate the optimizer used during training (or a new one for online)
         optimizer = tf.keras.optimizers.Adam(learning_rate=config.API_LEARNING_RATE_ONLINE)
-
-        # Compile the model for train_on_batch
         model.compile(optimizer=optimizer, loss=loss_fn, metrics=['accuracy'])
-
         logging.info(f"Model loaded successfully from {model_path} and compiled for learning.")
-
-        # Optional "warm-up" prediction
+        # Optional "warm-up" prediction with dummy data matching expected input shape
         dummy_input = np.zeros((1, config.INPUT_SHAPE[0]), dtype=np.float32)
         _ = model.predict(dummy_input, verbose=0)
         logging.info("Model warmed up.")
@@ -51,10 +46,8 @@ def create_app():
     flask_app = Flask(__name__)
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-    # Load the model when the app is created
     if not load_trained_model():
         logging.warning("Model loading failed. API endpoints might not work correctly.")
-        # You might choose to exit here or let it run but return errors
 
     # --- API Endpoints ---
     @flask_app.route('/health', methods=['GET'])
@@ -67,86 +60,130 @@ def create_app():
 
     @flask_app.route('/predict', methods=['POST'])
     def predict():
-        """Endpoint for getting predictions."""
+        """Endpoint for getting predictions from an uploaded image file."""
         if model is None:
             return jsonify({"error": "Model not available."}), 503
 
         start_time = time.time()
-        if not request.is_json:
-            return jsonify({"error": "Request must be JSON"}), 400
 
-        data = request.get_json()
-        if 'features' not in data:
-            return jsonify({"error": "Missing 'features' key in JSON input"}), 400
+        # Check if the post request has the file part
+        if 'image' not in request.files:
+            logging.warning("Predict request missing 'image' file part.")
+            return jsonify({"error": "No image file part in the request"}), 400
 
-        try:
-            processed_input = preprocess_api_input(data['features'])
-            predictions = model.predict(processed_input, verbose=0) # Output shape (1, 10)
-            predicted_class = int(np.argmax(predictions[0]))
-            confidence = float(np.max(predictions[0]))
+        file = request.files['image']
 
-            end_time = time.time()
-            logging.info(f"Prediction request processed in {end_time - start_time:.4f}s. Result: {predicted_class}")
+        # If the user does not select a file, the browser submits an
+        # empty file without a filename.
+        if file.filename == '':
+            logging.warning("Predict request received empty filename.")
+            return jsonify({"error": "No selected image file"}), 400
 
-            return jsonify({
-                "prediction": predicted_class,
-                "confidence": confidence
-            })
+        if file:
+            try:
+                # 1. Process the uploaded image file
+                features = process_uploaded_image(file) # Returns flattened (784,) array
 
-        except (ValueError, TypeError) as ve:
-            logging.warning(f"Bad prediction request data: {ve}")
-            return jsonify({"error": f"Invalid input data: {ve}"}), 400
-        except Exception as e:
-            logging.error(f"Prediction error: {e}", exc_info=True)
-            return jsonify({"error": "Prediction failed."}), 500
+                # 2. Reshape for the model (expects batch dimension)
+                processed_input = features.reshape(1, -1) # Shape (1, 784)
+
+                # 3. Predict
+                predictions = model.predict(processed_input, verbose=0) # Output shape (1, 10)
+                predicted_class = int(np.argmax(predictions[0]))
+                confidence = float(np.max(predictions[0]))
+
+                end_time = time.time()
+                logging.info(f"Prediction request processed in {end_time - start_time:.4f}s. Result: {predicted_class}")
+
+                return jsonify({
+                    "prediction": predicted_class,
+                    "confidence": confidence
+                })
+
+            except (ValueError, IOError) as ve:
+                logging.warning(f"Image processing error: {ve}")
+                return jsonify({"error": f"Invalid image or processing error: {ve}"}), 400
+            except Exception as e:
+                logging.error(f"Prediction error: {e}", exc_info=True)
+                return jsonify({"error": "Prediction failed due to an internal error."}), 500
+        else:
+             # This case should be caught by filename check, but defensively handle
+             return jsonify({"error": "Unknown error handling file upload"}), 500
+
 
     @flask_app.route('/learn', methods=['POST'])
     def learn():
-        """Endpoint for online learning (fine-tuning)."""
-        if model is None or optimizer is None: # Check optimizer too
+        """Endpoint for online learning from an uploaded image file and label."""
+        if model is None or optimizer is None:
              return jsonify({"error": "Model or optimizer not available for learning."}), 503
 
         start_time = time.time()
-        if not request.is_json:
-            return jsonify({"error": "Request must be JSON"}), 400
 
-        data = request.get_json()
-        if 'features' not in data or 'label' not in data:
-            return jsonify({"error": "Missing 'features' or 'label' key"}), 400
+        # Check for image file part
+        if 'image' not in request.files:
+            logging.warning("Learn request missing 'image' file part.")
+            return jsonify({"error": "No image file part in the request"}), 400
 
-        try:
-            processed_input = preprocess_api_input(data['features']) # Shape (1, 784)
-            label = data['label']
+        file = request.files['image']
+        if file.filename == '':
+            logging.warning("Learn request received empty filename.")
+            return jsonify({"error": "No selected image file"}), 400
 
-            if not isinstance(label, int) or not (0 <= label < config.NUM_CLASSES):
-                raise ValueError(f"Label must be an integer between 0 and {config.NUM_CLASSES-1}")
+        # Check for label form field
+        if 'label' not in request.form:
+            logging.warning("Learn request missing 'label' form field.")
+            return jsonify({"error": "Missing 'label' form field"}), 400
 
-            label_categorical = tf.keras.utils.to_categorical([label], num_classes=config.NUM_CLASSES) # Shape (1, 10)
+        label_str = request.form['label']
 
-            # Perform one learning step
-            metrics = model.train_on_batch(processed_input, label_categorical, return_dict=True)
+        if file:
+            try:
+                # 1. Validate Label
+                if not label_str.isdigit():
+                     raise ValueError("Label must be an integer digit.")
+                label_int = int(label_str)
+                if not (0 <= label_int < config.NUM_CLASSES):
+                    raise ValueError(f"Label must be an integer between 0 and {config.NUM_CLASSES-1}")
 
-            end_time = time.time()
-            logging.info(f"Learn request processed in {end_time - start_time:.4f}s. Label: {label}, Loss: {metrics.get('loss', 'N/A'):.4f}, Acc: {metrics.get('accuracy', 'N/A'):.4f}")
+                # 2. Process the uploaded image file
+                features = process_uploaded_image(file) # Returns flattened (784,) array
 
-            return jsonify({
-                "message": "Model updated with the provided example.",
-                "label_provided": label,
-                "loss_on_example": metrics.get('loss'),
-                "accuracy_on_example": metrics.get('accuracy')
-            })
+                # 3. Reshape features for the model
+                processed_input = features.reshape(1, -1) # Shape (1, 784)
 
-        except (ValueError, TypeError) as ve:
-            logging.warning(f"Bad learn request data: {ve}")
-            return jsonify({"error": f"Invalid input data: {ve}"}), 400
-        except Exception as e:
-            logging.error(f"Learning step error: {e}", exc_info=True)
-            return jsonify({"error": "Learning step failed."}), 500
+                # 4. One-hot encode the label
+                label_categorical = tf.keras.utils.to_categorical([label_int], num_classes=config.NUM_CLASSES) # Shape (1, 10)
+
+                # 5. Perform one learning step
+                metrics = model.train_on_batch(processed_input, label_categorical, return_dict=True)
+
+                end_time = time.time()
+                logging.info(f"Learn request processed in {end_time - start_time:.4f}s. Label: {label_int}, Loss: {metrics.get('loss', 'N/A'):.4f}, Acc: {metrics.get('accuracy', 'N/A'):.4f}")
+
+                # Convert potential NumPy types before returning JSON
+                loss_value = metrics.get('loss')
+                accuracy_value = metrics.get('accuracy')
+                if isinstance(loss_value, np.generic): loss_value = loss_value.item()
+                if isinstance(accuracy_value, np.generic): accuracy_value = accuracy_value.item()
+                loss_value = float(loss_value) if loss_value is not None else None
+                accuracy_value = float(accuracy_value) if accuracy_value is not None else None
+
+                return jsonify({
+                    "message": "Model updated with the provided example.",
+                    "label_provided": label_int,
+                    "loss_on_example": loss_value,
+                    "accuracy_on_example": accuracy_value
+                })
+
+            except (ValueError, IOError) as ve:
+                logging.warning(f"Image processing or label validation error: {ve}")
+                return jsonify({"error": f"Invalid input or processing error: {ve}"}), 400
+            except Exception as e:
+                logging.error(f"Learning step error: {e}", exc_info=True)
+                return jsonify({"error": "Learning step failed due to an internal error."}), 500
+        else:
+             return jsonify({"error": "Unknown error handling file upload"}), 500
 
     return flask_app
 
-# This check prevents running the app when imported, e.g., by Gunicorn
 # Use run_api.py to start the server directly.
-# if __name__ == '__main__':
-#     app = create_app()
-#     app.run(host=config.API_HOST, port=config.API_PORT, debug=False)

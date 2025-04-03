@@ -1,19 +1,20 @@
 # requirements.txt
 
 # Core ML/Data
-tensorflow
-numpy
-scikit-learn # For evaluation metrics and potential splitting
-matplotlib # For plotting history/confusion matrix
-seaborn # For pretty confusion matrix
+tensorflow>=2.8.0,<2.19.0
+numpy>=1.19.0
+scikit-learn>=1.0.0 # For evaluation metrics and potential splitting
+matplotlib>=3.3.0 # For plotting history/confusion matrix
+seaborn>=0.11.0 # For pretty confusion matrix
 
 # API Framework
-Flask
+Flask>=2.0.0,<3.0.0
+Pillow>=9.0.0 # <-- ADD THIS for image processing
 
 # Testing Framework
-pytest
-pytest-mock # For mocking dependencies in tests
-requests # Useful for making requests in tests or manually
+pytest>=7.0.0
+pytest-mock>=3.5.0 # For mocking dependencies in tests
+requests>=2.25.0 # Useful for making requests in tests or manually
 
 # Optional: Production WSGI Server
 # gunicorn>=20.0.0
