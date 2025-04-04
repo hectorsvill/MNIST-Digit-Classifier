@@ -1,3 +1,6 @@
+I see the codebase as the finished application, and the Prompt as the code that builds it. I want the reader to approach this with the correct mindset and expectations.
+- Prompt: [build.prompt](https://github.com/hectorsvill/MNIST-Digit-Classifier/blob/main/build.prompt)
+
 # MNIST Digit Classifier - Local Project with API
 
 This project provides a complete, locally runnable system for classifying handwritten digits using TensorFlow/Keras. It includes scripts to train a Convolutional Neural Network on the MNIST dataset, evaluate its performance, and serve the trained model via a Flask web API with prediction and basic learning endpoints. The code is structured modularly, features a pytest test suite, and is designed for easy setup and execution on your local machine.
